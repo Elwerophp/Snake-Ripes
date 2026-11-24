@@ -20,6 +20,7 @@
 #define COLOR_OFF         0x00000000U
 #define COLOR_RED         0x00FF0000U
 #define COLOR_GREEN       0x0000FF00U
+#define COLOR_BLUE        0x000000FFU
 
 // Direcciones
 #define DIR_NONE          0
@@ -46,6 +47,7 @@ Point snake[MAX_SNAKE_BLOCKS];
 int snake_blocks = INITIAL_BLOCKS;
 int current_dir  = DIR_RIGHT;
 int next_dir     = DIR_RIGHT;
+int game_over    = 0;
 
 Point apple;
 uint32_t rng_state    = 123456789U;
@@ -151,15 +153,32 @@ void init_snake(void) {
     snake_blocks = INITIAL_BLOCKS;
     current_dir  = DIR_RIGHT;
     next_dir     = DIR_RIGHT;
+    game_over    = 0;
 
     snake[0].x = 4;
     snake[0].y = 5;
 }
 
-void draw_snake(void) {
+void draw_snake(uint32_t color) {
     for (int i = 0; i < snake_blocks; i++) {
-        draw_block(snake[i].x, snake[i].y, COLOR_RED);
+        draw_block(snake[i].x, snake[i].y, color);
     }
+}
+
+// Revisa si la nueva posicion choca con un borde o con su propio cuerpo
+int check_collision(int nx, int ny, int growing) {
+    if (nx < 0 || nx >= GRID_WIDTH || ny < 0 || ny >= GRID_HEIGHT) {
+        return 1;
+    }
+
+    int limit = growing ? snake_blocks : (snake_blocks - 1);
+    for (int i = 0; i < limit; i++) {
+        if (snake[i].x == nx && snake[i].y == ny) {
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 void move_snake(void) {
@@ -178,16 +197,15 @@ void move_snake(void) {
         new_x++;
     }
 
-    // Cruza los bordes por ahora (en el siguiente paso ponemos los choques)
-    if (new_x < 0)            new_x = GRID_WIDTH - 1;
-    if (new_x >= GRID_WIDTH)  new_x = 0;
-    if (new_y < 0)            new_y = GRID_HEIGHT - 1;
-    if (new_y >= GRID_HEIGHT) new_y = 0;
-
     int ate_apple = (new_x == apple.x && new_y == apple.y);
 
+    if (check_collision(new_x, new_y, ate_apple)) {
+        game_over = 1;
+        draw_snake(COLOR_BLUE);
+        return;
+    }
+
     if (ate_apple && snake_blocks < MAX_SNAKE_BLOCKS) {
-        // Si come, no borramos la cola para que se haga mas larga
         for (int i = snake_blocks; i > 0; i--) {
             snake[i] = snake[i - 1];
         }
@@ -198,7 +216,6 @@ void move_snake(void) {
         draw_block(snake[0].x, snake[0].y, COLOR_RED);
         spawn_apple();
     } else {
-        // Si no come, borramos la cola y avanzamos normal
         Point tail = snake[snake_blocks - 1];
         draw_block(tail.x, tail.y, COLOR_OFF);
 
@@ -215,12 +232,14 @@ void move_snake(void) {
 int main(void) {
     clear_matrix();
     init_snake();
-    draw_snake();
+    draw_snake(COLOR_RED);
     spawn_apple();
 
     while (1) {
-        step_delay();
-        move_snake();
+        if (!game_over) {
+            step_delay();
+            move_snake();
+        }
     }
 
     return 0;
