@@ -1,7 +1,8 @@
 ﻿#include <stdint.h>
 
-// Direcciones de la matriz LED y los botones D-Pad
+// Direcciones de la matriz LED, Switch 0 y botones D-Pad
 #define LED_MATRIX_BASE   0xf0000000U
+#define SWITCHES_BASE     0xf0000640U
 #define D_PAD_UP_ADDR     0xf0000644U
 #define D_PAD_DOWN_ADDR   0xf0000648U
 #define D_PAD_LEFT_ADDR   0xf000064cU
@@ -38,6 +39,7 @@ typedef struct {
 } Point;
 
 static volatile uint32_t * const led_matrix = (volatile uint32_t *)LED_MATRIX_BASE;
+static volatile uint32_t * const switches   = (volatile uint32_t *)SWITCHES_BASE;
 static volatile uint32_t * const dpad_up    = (volatile uint32_t *)D_PAD_UP_ADDR;
 static volatile uint32_t * const dpad_down  = (volatile uint32_t *)D_PAD_DOWN_ADDR;
 static volatile uint32_t * const dpad_left  = (volatile uint32_t *)D_PAD_LEFT_ADDR;
@@ -165,7 +167,6 @@ void draw_snake(uint32_t color) {
     }
 }
 
-// Revisa si la nueva posicion choca con un borde o con su propio cuerpo
 int check_collision(int nx, int ny, int growing) {
     if (nx < 0 || nx >= GRID_WIDTH || ny < 0 || ny >= GRID_HEIGHT) {
         return 1;
@@ -229,16 +230,34 @@ void move_snake(void) {
     }
 }
 
-int main(void) {
+// Limpia todo y vuelve a empezar la partida
+void reset_game(void) {
     clear_matrix();
     init_snake();
     draw_snake(COLOR_RED);
     spawn_apple();
+    (void)read_dpad();
+}
+
+int main(void) {
+    uint32_t last_sw0 = (*switches) & 0x1U;
+
+    reset_game();
 
     while (1) {
+        uint32_t curr_sw0 = (*switches) & 0x1U;
+
         if (!game_over) {
+            last_sw0 = curr_sw0;
             step_delay();
             move_snake();
+        } else {
+            tick_counter++;
+            // Si cambias de posicion el Switch 0 cuando perdiste, reinicia
+            if (curr_sw0 != last_sw0) {
+                last_sw0 = curr_sw0;
+                reset_game();
+            }
         }
     }
 
