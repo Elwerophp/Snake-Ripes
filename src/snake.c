@@ -19,6 +19,7 @@
 // Colores RGB (0x00RRGGBB)
 #define COLOR_OFF         0x00000000U
 #define COLOR_RED         0x00FF0000U
+#define COLOR_GREEN       0x0000FF00U
 
 // Direcciones de movimiento
 #define DIR_NONE          0
@@ -43,11 +44,15 @@ static volatile uint32_t * const dpad_down  = (volatile uint32_t *)D_PAD_DOWN_AD
 static volatile uint32_t * const dpad_left  = (volatile uint32_t *)D_PAD_LEFT_ADDR;
 static volatile uint32_t * const dpad_right = (volatile uint32_t *)D_PAD_RIGHT_ADDR;
 
-// Estado de la serpiente
+// Estado de la serpiente y de la manzana
 Point snake[MAX_SNAKE_BLOCKS];
 int snake_blocks = INITIAL_BLOCKS;
 int current_dir  = DIR_RIGHT;
 int next_dir     = DIR_RIGHT;
+
+Point apple;
+uint32_t rng_state    = 123456789U;
+uint32_t tick_counter = 0U;
 
 // Enciende un LED fisico en (px, py)
 void set_led(int px, int py, uint32_t color) {
@@ -108,8 +113,44 @@ void update_direction(void) {
 // Controla la velocidad de avance mientras sigue escuchando el D-Pad
 void step_delay(void) {
     for (int poll = 0; poll < 10; poll++) {
+        tick_counter++;
         update_direction();
         for (volatile uint32_t i = 0; i < 2000; i++) {
+        }
+    }
+}
+
+// Generador pseudoaleatorio ligero (LCG)
+uint32_t next_random(void) {
+    rng_state = rng_state * 1664525U + 1013904223U + tick_counter;
+    return rng_state;
+}
+
+// Verifica si la celda logica (gx, gy) esta ocupada por la serpiente
+int is_on_snake(int gx, int gy) {
+    for (int i = 0; i < snake_blocks; i++) {
+        if (snake[i].x == gx && snake[i].y == gy) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// Genera una manzana verde de 2x2 dentro de los limites y fuera de la serpiente
+void spawn_apple(void) {
+    int total_cells = GRID_WIDTH * GRID_HEIGHT;
+    int start_idx   = (int)(next_random() % (uint32_t)total_cells);
+
+    for (int offset = 0; offset < total_cells; offset++) {
+        int idx = (start_idx + offset) % total_cells;
+        int gx  = idx % GRID_WIDTH;
+        int gy  = idx / GRID_WIDTH;
+
+        if (!is_on_snake(gx, gy)) {
+            apple.x = gx;
+            apple.y = gy;
+            draw_block(apple.x, apple.y, COLOR_GREEN);
+            return;
         }
     }
 }
@@ -155,7 +196,7 @@ void move_snake(void) {
         snake[0].x++;
     }
 
-    // Envolvente temporal para probar movimiento antes de la etapa de colisiones
+    // Envolvente temporal para probar antes de la etapa de colisiones
     if (snake[0].x < 0)            snake[0].x = GRID_WIDTH - 1;
     if (snake[0].x >= GRID_WIDTH)  snake[0].x = 0;
     if (snake[0].y < 0)            snake[0].y = GRID_HEIGHT - 1;
@@ -163,12 +204,18 @@ void move_snake(void) {
 
     // Dibujar nueva cabeza
     draw_block(snake[0].x, snake[0].y, COLOR_RED);
+
+    // Si alcanza la manzana, generar una nueva en otra celda libre
+    if (snake[0].x == apple.x && snake[0].y == apple.y) {
+        spawn_apple();
+    }
 }
 
 int main(void) {
     clear_matrix();
     init_snake();
     draw_snake();
+    spawn_apple();
 
     while (1) {
         step_delay();
