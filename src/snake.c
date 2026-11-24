@@ -11,7 +11,7 @@
 #define MATRIX_WIDTH      20
 #define MATRIX_HEIGHT     20
 
-// Cuadricula logica de bloques 2x2 (10x10 celdas logicas)
+// Cuadricula logica de bloques 2x2 (10x10 celdas logicas: 0..9)
 #define BLOCK_SIZE        2
 #define GRID_WIDTH        (MATRIX_WIDTH / BLOCK_SIZE)
 #define GRID_HEIGHT       (MATRIX_HEIGHT / BLOCK_SIZE)
@@ -61,8 +61,12 @@ void set_led(int px, int py, uint32_t color) {
     }
 }
 
-// Dibuja un bloque de 2x2 LEDs en la celda logica (gx, gy)
+// Dibuja un bloque completo de 2x2 LEDs en la celda logica (gx, gy)
 void draw_block(int gx, int gy, uint32_t color) {
+    if (gx < 0 || gx >= GRID_WIDTH || gy < 0 || gy >= GRID_HEIGHT) {
+        return;
+    }
+
     int base_x = gx * BLOCK_SIZE;
     int base_y = gy * BLOCK_SIZE;
 
@@ -136,7 +140,7 @@ int is_on_snake(int gx, int gy) {
     return 0;
 }
 
-// Genera una manzana verde de 2x2 dentro de los limites y fuera de la serpiente
+// Genera una manzana verde de 2x2 dentro de los limites (0..9) y fuera de la serpiente
 void spawn_apple(void) {
     int total_cells = GRID_WIDTH * GRID_HEIGHT;
     int start_idx   = (int)(next_random() % (uint32_t)total_cells);
