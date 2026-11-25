@@ -1,18 +1,11 @@
-﻿#include <stdint.h>
+#include <stdint.h>
+#include "ripes_system.h"
 
-// Direcciones de la matriz LED, Switches y botones D-Pad
-#define LED_MATRIX_BASE   0xf0000000U
-#define SWITCHES_BASE     0xf0000640U
-#define D_PAD_UP_ADDR     0xf0000644U
-#define D_PAD_DOWN_ADDR   0xf0000648U
-#define D_PAD_LEFT_ADDR   0xf000064cU
-#define D_PAD_RIGHT_ADDR  0xf0000650U
+// Tamano de la pantalla (se toma solo de Ripes)
+#define MATRIX_WIDTH      LED_MATRIX_0_WIDTH
+#define MATRIX_HEIGHT     LED_MATRIX_0_HEIGHT
 
-// Tamano de la pantalla (20x20 LEDs)
-#define MATRIX_WIDTH      20
-#define MATRIX_HEIGHT     20
-
-// Cuadricula de cuadros de 2x2 (10x10 cuadros en total)
+// Cuadricula de cuadros de 2x2
 #define BLOCK_SIZE        2
 #define GRID_WIDTH        (MATRIX_WIDTH / BLOCK_SIZE)
 #define GRID_HEIGHT       (MATRIX_HEIGHT / BLOCK_SIZE)
@@ -30,7 +23,7 @@
 #define DIR_LEFT          3
 #define DIR_RIGHT         4
 
-#define MAX_SNAKE_BLOCKS  100
+#define MAX_SNAKE_BLOCKS  (GRID_WIDTH * GRID_HEIGHT)
 #define INITIAL_BLOCKS    1
 
 typedef struct {
@@ -38,12 +31,13 @@ typedef struct {
     int y;
 } Point;
 
-static volatile uint32_t * const led_matrix = (volatile uint32_t *)LED_MATRIX_BASE;
-static volatile uint32_t * const switches   = (volatile uint32_t *)SWITCHES_BASE;
-static volatile uint32_t * const dpad_up    = (volatile uint32_t *)D_PAD_UP_ADDR;
-static volatile uint32_t * const dpad_down  = (volatile uint32_t *)D_PAD_DOWN_ADDR;
-static volatile uint32_t * const dpad_left  = (volatile uint32_t *)D_PAD_LEFT_ADDR;
-static volatile uint32_t * const dpad_right = (volatile uint32_t *)D_PAD_RIGHT_ADDR;
+// Direcciones tomadas directo de Ripes (no se rompen si cambias el tamano)
+static volatile uint32_t * const led_matrix = (volatile uint32_t *)LED_MATRIX_0_BASE;
+static volatile uint32_t * const switches   = (volatile uint32_t *)SWITCHES_0_BASE;
+static volatile uint32_t * const dpad_up    = (volatile uint32_t *)D_PAD_0_UP;
+static volatile uint32_t * const dpad_down  = (volatile uint32_t *)D_PAD_0_DOWN;
+static volatile uint32_t * const dpad_left  = (volatile uint32_t *)D_PAD_0_LEFT;
+static volatile uint32_t * const dpad_right = (volatile uint32_t *)D_PAD_0_RIGHT;
 
 Point snake[MAX_SNAKE_BLOCKS];
 int snake_blocks = INITIAL_BLOCKS;
@@ -125,7 +119,6 @@ void step_delay(uint32_t last_sw0) {
 
     for (int poll = 0; poll < 10; poll++) {
         tick_counter++;
-        // Si mueves el Switch 0 en medio del paso, sale de inmediato para reiniciar
         if (((*switches) & 0x1U) != last_sw0) {
             return;
         }
@@ -173,8 +166,8 @@ void init_snake(void) {
     next_dir     = DIR_RIGHT;
     game_over    = 0;
 
-    snake[0].x = 4;
-    snake[0].y = 5;
+    snake[0].x = GRID_WIDTH / 2;
+    snake[0].y = GRID_HEIGHT / 2;
 }
 
 void draw_snake(uint32_t color) {
@@ -262,7 +255,6 @@ int main(void) {
     while (1) {
         uint32_t curr_sw0 = (*switches) & 0x1U;
 
-        // Reinicia en cualquier momento si cambia el Switch 0
         if (curr_sw0 != last_sw0) {
             last_sw0 = curr_sw0;
             reset_game();
