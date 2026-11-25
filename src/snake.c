@@ -1,6 +1,6 @@
 ﻿#include <stdint.h>
 
-// Direcciones de la matriz LED, Switch 0 y botones D-Pad
+// Direcciones de la matriz LED, Switches y botones D-Pad
 #define LED_MATRIX_BASE   0xf0000000U
 #define SWITCHES_BASE     0xf0000640U
 #define D_PAD_UP_ADDR     0xf0000644U
@@ -110,11 +110,27 @@ void update_direction(void) {
     }
 }
 
-void step_delay(void) {
+// Lee Switches 1, 2 y 3 para elegir la velocidad (el numero mas alto gana)
+uint32_t get_speed_delay(void) {
+    uint32_t sw = *switches;
+
+    if (sw & (1U << 3)) return 250U;   // Switch 3: Dificultad 3
+    if (sw & (1U << 2)) return 600U;   // Switch 2: Dificultad 2
+    if (sw & (1U << 1)) return 1200U;  // Switch 1: Dificultad 1
+    return 2000U;                      // Apagados: Normal
+}
+
+void step_delay(uint32_t last_sw0) {
+    uint32_t wait = get_speed_delay();
+
     for (int poll = 0; poll < 10; poll++) {
         tick_counter++;
+        // Si mueves el Switch 0 en medio del paso, sale de inmediato para reiniciar
+        if (((*switches) & 0x1U) != last_sw0) {
+            return;
+        }
         update_direction();
-        for (volatile uint32_t i = 0; i < 2000; i++) {
+        for (volatile uint32_t i = 0; i < wait; i++) {
         }
     }
 }
@@ -230,7 +246,6 @@ void move_snake(void) {
     }
 }
 
-// Limpia todo y vuelve a empezar la partida
 void reset_game(void) {
     clear_matrix();
     init_snake();
@@ -247,17 +262,21 @@ int main(void) {
     while (1) {
         uint32_t curr_sw0 = (*switches) & 0x1U;
 
-        if (!game_over) {
+        // Reinicia en cualquier momento si cambia el Switch 0
+        if (curr_sw0 != last_sw0) {
             last_sw0 = curr_sw0;
-            step_delay();
+            reset_game();
+            continue;
+        }
+
+        if (!game_over) {
+            step_delay(last_sw0);
+            if (((*switches) & 0x1U) != last_sw0) {
+                continue;
+            }
             move_snake();
         } else {
             tick_counter++;
-            // Si cambias de posicion el Switch 0 cuando perdiste, reinicia
-            if (curr_sw0 != last_sw0) {
-                last_sw0 = curr_sw0;
-                reset_game();
-            }
         }
     }
 
